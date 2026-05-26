@@ -39,9 +39,12 @@ class OutputConfig:
 
 
 @dataclass
-class FasterWhisperConfig:
+class ProfileConfig:
+    # profile_id は config.toml のセクションキーから自動設定。TOML 内では省略可
+    profile_id: str = ""
+    model_id: str = "small"
+    backend: str = "faster_whisper"
     enabled: bool = True
-    model: str = "small"
     language: str = "ja"
     device: str = "cpu"
     compute_type: str = "int8"
@@ -53,7 +56,7 @@ class FasterWhisperConfig:
 class AppConfig:
     audio: AudioConfig = field(default_factory=AudioConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
-    faster_whisper: FasterWhisperConfig = field(default_factory=FasterWhisperConfig)
+    profiles: dict[str, ProfileConfig] = field(default_factory=dict)
 
 
 def _validate_audio(audio: AudioConfig) -> None:
@@ -107,8 +110,11 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:
         _apply_section(cfg.audio, raw["audio"])
     if "output" in raw:
         _apply_section(cfg.output, raw["output"])
-    if "faster_whisper" in raw:
-        _apply_section(cfg.faster_whisper, raw["faster_whisper"])
+    if "profiles" in raw:
+        for profile_id, profile_raw in raw["profiles"].items():
+            profile = ProfileConfig(profile_id=profile_id)
+            _apply_section(profile, profile_raw)
+            cfg.profiles[profile_id] = profile
 
     _validate_audio(cfg.audio)
     return cfg
@@ -116,18 +122,5 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:
 
 def apply_cli_overrides(cfg: AppConfig, args: Any) -> None:
     # None は「CLI で未指定」。config 値を上書きしない
-    fw = cfg.faster_whisper
-    if getattr(args, "model", None) is not None:
-        fw.model = args.model
-    if getattr(args, "language", None) is not None:
-        fw.language = args.language
-    if getattr(args, "device", None) is not None:
-        fw.device = args.device
-    if getattr(args, "compute_type", None) is not None:
-        fw.compute_type = args.compute_type
-    if getattr(args, "cpu_threads", None) is not None:
-        fw.cpu_threads = args.cpu_threads
-    if getattr(args, "num_workers", None) is not None:
-        fw.num_workers = args.num_workers
     if getattr(args, "output_dir", None) is not None:
         cfg.output.output_dir = str(args.output_dir)

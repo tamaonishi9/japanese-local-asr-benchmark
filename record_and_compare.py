@@ -5,8 +5,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from adapters.base import BaseAdapter
 from adapters.faster_whisper_adapter import FasterWhisperAdapter
-from config_loader import apply_cli_overrides, load_config
+from config_loader import ProfileConfig, apply_cli_overrides, load_config
 from output import (
     copy_to_clipboard,
     make_output_paths,
@@ -21,17 +22,24 @@ from recorder import Recorder
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="録音した音声を faster-whisper で文字起こしし、比較レポートを出力する。"
+        description="録音した音声を複数プロファイルで文字起こしし、比較レポートを出力する。"
     )
     # デフォルトはすべて None。config.toml 値を CLI 引数で上書きする場合のみ非 None になる
     parser.add_argument("--output-dir", type=Path, default=None, help="レポート出力先")
-    parser.add_argument("--model", default=None, help="Whisper モデル名")
-    parser.add_argument("--language", default=None, help="文字起こし言語コード")
-    parser.add_argument("--device", default=None, help="推論デバイス: cpu または cuda")
-    parser.add_argument("--compute-type", default=None, help="CTranslate2 計算精度")
-    parser.add_argument("--cpu-threads", type=int, default=None, help="CPU 推論スレッド数")
-    parser.add_argument("--num-workers", type=int, default=None, help="WhisperModel worker 数")
     return parser.parse_args()
+
+
+def _build_adapter(profile: ProfileConfig) -> FasterWhisperAdapter:
+    return FasterWhisperAdapter(
+        profile_id=profile.profile_id,
+        model_id=profile.model_id,
+        backend=profile.backend,
+        language=profile.language,
+        device=profile.device,
+        compute_type=profile.compute_type,
+        cpu_threads=profile.cpu_threads,
+        num_workers=profile.num_workers,
+    )
 
 
 def main() -> int:
@@ -45,8 +53,13 @@ def main() -> int:
 
     apply_cli_overrides(cfg, args)
 
-    if not cfg.faster_whisper.enabled:
-        print("error: [faster_whisper] enabled = false。実行をスキップ。", file=sys.stderr)
+    enabled_profiles = [p for p in cfg.profiles.values() if p.enabled]
+    if not enabled_profiles:
+        print(
+            "error: 有効なプロファイルがありません。"
+            "config.toml の [profiles.*] で enabled = true を設定してください。",
+            file=sys.stderr,
+        )
         return 1
 
     out = cfg.output
@@ -58,24 +71,20 @@ def main() -> int:
         )
         return 1
 
-    fw = cfg.faster_whisper
+    # Phase 1 では faster_whisper 以外の backend は未実装
+    for profile in enabled_profiles:
+        if profile.backend != "faster_whisper":
+            print(
+                f"error: [{profile.profile_id}] backend={profile.backend!r} は未対応。"
+                "Phase 1 では faster_whisper のみ使用できます。",
+                file=sys.stderr,
+            )
+            return 1
 
-    # 録音待ち中にユーザーを待たせないため、モデルを先に読み込む
-    print(f"モデル読み込み中: {fw.model} ...")
-    adapter = FasterWhisperAdapter(
-        model_name=fw.model,
-        language=fw.language,
-        device=fw.device,
-        compute_type=fw.compute_type,
-        cpu_threads=fw.cpu_threads,
-        num_workers=fw.num_workers,
-    )
-    try:
-        adapter.prepare()
-    except Exception as error:
-        print(f"error: モデル読み込み失敗: {error}", file=sys.stderr)
-        return 1
-    print(f"モデル読み込み完了 ({adapter.model_load_seconds:.3f} s)")
+    # pipeline.run() 内で順次 prepare→run→release する。同時保持による RAM/VRAM 合算を防ぐ
+    adapters: list[BaseAdapter] = [_build_adapter(p) for p in enabled_profiles]
+
+    print(f"{len(adapters)} プロファイル 順次実行: {[p.profile_id for p in enabled_profiles]}")
 
     recorder = Recorder(
         sample_rate=cfg.audio.sample_rate,
@@ -94,9 +103,22 @@ def main() -> int:
         return 1
     print(f"録音完了: {source_audio.duration_seconds:.3f} s")
 
-    pipeline = ComparisonPipeline(adapters=[adapter])
+    pipeline = ComparisonPipeline(adapters=adapters)
     session = pipeline.run(source_audio)
+
     # CLI 上書き適用後の実効設定を記録し、JSON 出力から実行条件を再現できるようにする
+    profiles_snapshot: dict[str, Any] = {}
+    for profile in enabled_profiles:
+        profiles_snapshot[profile.profile_id] = {
+            "model_id": profile.model_id,
+            "backend": profile.backend,
+            "enabled": profile.enabled,
+            "language": profile.language,
+            "device": profile.device,
+            "compute_type": profile.compute_type,
+            "cpu_threads": profile.cpu_threads,
+            "num_workers": profile.num_workers,
+        }
     session.effective_configuration = {
         "audio": {
             "sample_rate": cfg.audio.sample_rate,
@@ -110,17 +132,7 @@ def main() -> int:
             "save_csv": cfg.output.save_csv,
             "save_json": cfg.output.save_json,
         },
-        "engines": {
-            "faster_whisper": {
-                "enabled": cfg.faster_whisper.enabled,
-                "model": cfg.faster_whisper.model,
-                "language": cfg.faster_whisper.language,
-                "device": cfg.faster_whisper.device,
-                "compute_type": cfg.faster_whisper.compute_type,
-                "cpu_threads": cfg.faster_whisper.cpu_threads,
-                "num_workers": cfg.faster_whisper.num_workers,
-            },
-        },
+        "profiles": profiles_snapshot,
     }
 
     markdown = render_comparison_markdown(session)
@@ -180,15 +192,29 @@ def main() -> int:
         else:
             print("クリップボードへのコピーに失敗しました。", file=sys.stderr)
 
-    result = session.engine_results[0]
-    if result.status == "success":
-        print(f"推論時間: {result.inference_seconds:.3f} s  RTF: {result.inference_rtf:.3f}")
-    else:
-        print(f"error: 推論失敗: {result.error_message}", file=sys.stderr)
-        return 1
+    # 全プロファイルの結果サマリーを表示
+    any_success = False
+    for result in session.engine_results:
+        if result.status == "success":
+            print(
+                f"[{result.profile_id}]"
+                f"  load: {result.model_load_seconds:.3f} s"
+                f"  推論: {result.inference_seconds:.3f} s"
+                f"  RTF: {result.inference_rtf:.3f}"
+            )
+            any_success = True
+        else:
+            print(
+                f"error: [{result.profile_id}] 推論失敗: {result.error_message}",
+                file=sys.stderr,
+            )
 
-    return 0
+    return 0 if any_success else 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        print("\n中断しました。", file=sys.stderr)
+        raise SystemExit(1)

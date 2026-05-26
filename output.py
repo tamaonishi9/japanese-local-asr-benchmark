@@ -21,7 +21,7 @@ def render_comparison_markdown(session: SessionResult) -> str:
     ]
 
     for result in session.engine_results:
-        lines.append(f"## {result.engine_name} / {result.model_name}")
+        lines.append(f"## {result.profile_id} / {result.model_id}")
         lines.append("")
         if result.status == "success":
             settings_str = ", ".join(
@@ -51,6 +51,9 @@ def _session_to_json_dict(session: SessionResult) -> dict[str, Any]:
         run: dict[str, Any] = {
             "engine_name": r.engine_name,
             "model_name": r.model_name,
+            "profile_id": r.profile_id,
+            "model_id": r.model_id,
+            "backend": r.backend,
             "settings": r.settings,
             "status": r.status,
             "transcript_raw": r.transcript_raw,
@@ -112,6 +115,9 @@ def write_csv(path: Path, session: SessionResult) -> bool:
     fieldnames = [
         "created_at",
         "duration_seconds",
+        "profile_id",
+        "model_id",
+        "backend",
         "engine_name",
         "model_name",
         "status",
@@ -126,6 +132,9 @@ def write_csv(path: Path, session: SessionResult) -> bool:
         {
             "created_at": session.created_at,
             "duration_seconds": session.source_audio["duration_seconds"],
+            "profile_id": r.profile_id,
+            "model_id": r.model_id,
+            "backend": r.backend,
             "engine_name": r.engine_name,
             "model_name": r.model_name,
             "status": r.status,

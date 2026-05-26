@@ -16,3 +16,7 @@ class BaseAdapter(ABC):
     def run(self, source_audio: SourceAudio) -> EngineResult:
         """source audio を受け取り推論を実行して EngineResult を返す。"""
         ...
+
+    def release(self) -> None:
+        """モデルを解放してメモリを回収する。解放処理が不要な adapter は上書き不要。"""
+        pass

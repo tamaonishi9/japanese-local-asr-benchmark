@@ -31,15 +31,34 @@ class ComparisonPipeline:
         engine_results: list[EngineResult] = []
         execution_order: list[str] = []
 
-        for adapter in self._adapters:
-            # 1 エンジン失敗でも他エンジンの結果を継続して回収する
+        total = len(self._adapters)
+        for i, adapter in enumerate(self._adapters, 1):
+            profile_id = getattr(adapter, "profile_id", "")
+            model_id = getattr(adapter, "model_id", "")
+            print(f"[{i}/{total}] {profile_id} ({model_id}) モデル読み込み中 ...")
+            # 1 プロファイル完了後に即時解放し、複数モデル同時保持による RAM/VRAM 合算を防ぐ
             try:
+                adapter.prepare()
+                load_sec = getattr(adapter, "model_load_seconds", 0.0)
+                print(f"  読み込み完了 ({load_sec:.3f} s)  推論中 ...")
                 result = adapter.run(source_audio)
+                if result.status == "success":
+                    print(
+                        f"  推論完了"
+                        f" ({result.inference_seconds:.3f} s"
+                        f"  RTF {result.inference_rtf:.3f})"
+                    )
+                else:
+                    print(f"  エラー: {result.error_message}")
             except Exception as error:
+                print(f"  失敗: {error}")
                 from engine_result import EngineResult as _ER
                 result = _ER(
                     engine_name=type(adapter).__name__,
                     model_name="",
+                    profile_id=profile_id,
+                    model_id=model_id,
+                    backend=getattr(adapter, "backend", ""),
                     settings={},
                     status="error",
                     transcript_raw="",
@@ -53,11 +72,13 @@ class ComparisonPipeline:
                     engine_input=None,
                     error_message=str(error),
                 )
+            finally:
+                adapter.release()
             engine_results.append(result)
-            execution_order.append(result.engine_name)
+            execution_order.append(result.profile_id or result.engine_name)
 
         return SessionResult(
-            schema_version=1,
+            schema_version=2,
             created_at=datetime.now(timezone.utc).isoformat(),
             source_audio={
                 "sample_rate": source_audio.sample_rate,

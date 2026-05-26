@@ -22,6 +22,10 @@ class DerivedEngineInput:
 class EngineResult:
     engine_name: str
     model_name: str
+    # Phase 1: profiles 構造で使う識別子
+    profile_id: str
+    model_id: str
+    backend: str
     settings: dict[str, Any]
     # "success" | "error" | "skipped"
     status: str

@@ -34,14 +34,18 @@ def _configure_ctranslate2_runtime() -> None:
 class FasterWhisperAdapter(BaseAdapter):
     def __init__(
         self,
-        model_name: str = "small",
+        profile_id: str,
+        model_id: str,
+        backend: str = "faster_whisper",
         language: str = "ja",
         device: str = "cpu",
         compute_type: str = "int8",
         cpu_threads: int | None = None,
         num_workers: int = 1,
     ) -> None:
-        self.model_name = model_name
+        self.profile_id = profile_id
+        self.model_id = model_id
+        self.backend = backend
         self.language = language
         self.device = device
         self.compute_type = compute_type
@@ -49,6 +53,10 @@ class FasterWhisperAdapter(BaseAdapter):
         self.num_workers = num_workers
         self._model: Any = None
         self.model_load_seconds: float = 0.0
+
+    def release(self) -> None:
+        # WhisperModel 参照を破棄し gc 収集を促す。sequential 実行で 1 モデル分の VRAM/RAM のみ占有する
+        self._model = None
 
     def prepare(self) -> None:
         # モデル読込時間を推論時間と分離して計測する
@@ -66,7 +74,13 @@ class FasterWhisperAdapter(BaseAdapter):
             model_kwargs["cpu_threads"] = self.cpu_threads
 
         load_started = time.perf_counter()
-        self._model = WhisperModel(self.model_name, **model_kwargs)
+        self._model = WhisperModel(self.model_id, **model_kwargs)
+        if self.device == "cuda":
+            # CUDA 初回カーネル読込・キャッシュ生成を model_load_seconds に吸収し
+            # 後続の inference_seconds をプロファイル間で公平に比較できるようにする
+            import numpy as np
+            _dummy = np.zeros(16000, dtype=np.float32)
+            list(self._model.transcribe(_dummy, language=self.language)[0])
         self.model_load_seconds = time.perf_counter() - load_started
 
     def run(self, source_audio: SourceAudio) -> EngineResult:
@@ -81,7 +95,10 @@ class FasterWhisperAdapter(BaseAdapter):
         if self._model is None:
             return EngineResult(
                 engine_name=ENGINE_NAME,
-                model_name=self.model_name,
+                model_name=self.model_id,
+                profile_id=self.profile_id,
+                model_id=self.model_id,
+                backend=self.backend,
                 settings=settings,
                 status="error",
                 transcript_raw="",
@@ -127,7 +144,10 @@ class FasterWhisperAdapter(BaseAdapter):
         except Exception as error:
             return EngineResult(
                 engine_name=ENGINE_NAME,
-                model_name=self.model_name,
+                model_name=self.model_id,
+                profile_id=self.profile_id,
+                model_id=self.model_id,
+                backend=self.backend,
                 settings=settings,
                 status="error",
                 transcript_raw="",
@@ -148,7 +168,10 @@ class FasterWhisperAdapter(BaseAdapter):
 
         return EngineResult(
             engine_name=ENGINE_NAME,
-            model_name=self.model_name,
+            model_name=self.model_id,
+            profile_id=self.profile_id,
+            model_id=self.model_id,
+            backend=self.backend,
             settings=settings,
             status="success",
             transcript_raw=transcript_raw,
