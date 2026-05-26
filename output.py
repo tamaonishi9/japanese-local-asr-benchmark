@@ -86,6 +86,8 @@ def _session_to_json_dict(session: SessionResult) -> dict[str, Any]:
     }
     if session.output_status:
         result["output_status"] = session.output_status
+    if session.effective_configuration:
+        result["effective_configuration"] = session.effective_configuration
     return result
 
 

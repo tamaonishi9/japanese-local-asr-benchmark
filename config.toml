@@ -1,0 +1,20 @@
+[audio]
+sample_rate = 16000
+channels = 1
+dtype = "float32"
+
+[output]
+output_dir = "results"
+copy_markdown_to_clipboard = true
+save_markdown = true
+save_csv = true
+save_json = true
+
+[faster_whisper]
+enabled = true
+model = "small"
+language = "ja"
+device = "cpu"
+compute_type = "int8"
+cpu_threads = 4
+num_workers = 1

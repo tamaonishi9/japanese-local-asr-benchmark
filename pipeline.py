@@ -19,6 +19,8 @@ class SessionResult:
     engine_results: list[EngineResult]
     # MD/CSV/クリップボードの保存・コピー結果。JSON 書き込み直前に確定する
     output_status: dict[str, Any] = field(default_factory=dict)
+    # CLI 上書き適用後の実効設定スナップショット。config.toml + CLI args の合成結果を記録する
+    effective_configuration: dict[str, Any] = field(default_factory=dict)
 
 
 class ComparisonPipeline:
