@@ -1,3 +1,7 @@
+# 推論結果・録音音声（文字起こし内容・個人音声を含む可能性があるため除外）
+results/
+*.wav
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -20,6 +24,7 @@ parts/
 sdist/
 var/
 wheels/
+results/
 share/python-wheels/
 *.egg-info/
 .installed.cfg

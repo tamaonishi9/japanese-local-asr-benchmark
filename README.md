@@ -497,3 +497,20 @@ num_workers = 1
 - 初期版は 16 kHz / mono / float32 の録音入力のみ
 - 精度評価用の正解テキストや CER / WER の集計は未対応
 - 実行速度は CPU / GPU、メモリ、計算精度、スレッド数等に大きく依存する
+
+## License
+
+本リポジトリで作成したソースコード、設定テンプレート、ドキュメントは [MIT License](LICENSE) で公開しています。
+
+本ツールが利用する外部ライブラリおよび ASR モデルの重みファイルは、本リポジトリには同梱しません。利用者が各配布元から取得し、それぞれのライセンスおよび利用条件に従って使用してください。
+
+現在利用する主な外部成果物:
+
+| 対象 | 用途 | ライセンス確認先 |
+| --- | --- | --- |
+| `faster-whisper` | ASR 推論 backend | [SYSTRAN/faster-whisper](https://github.com/SYSTRAN/faster-whisper/blob/master/LICENSE) |
+| `CTranslate2` | 推論 runtime | [OpenNMT/CTranslate2](https://github.com/OpenNMT/CTranslate2) |
+| Whisper `small` / `large-v3` | 比較用モデル | [openai/whisper](https://github.com/openai/whisper/blob/main/LICENSE) |
+| `kotoba-tech/kotoba-whisper-v2.0-faster` | 日本語特化比較用モデル | [Hugging Face model page](https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0-faster) |
+
+将来、モデルファイル、依存ライブラリ、DLL、実行ファイル一式などを本リポジトリや配布物へ同梱する場合は、対象物ごとの再配布条件およびライセンス表示要件を改めて確認してください。
