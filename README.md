@@ -60,7 +60,7 @@ dtype = "float32"
 ### 1. リポジトリを取得
 
 ```powershell
-git clone <repository-url>
+git clone https://github.com/tamaonishi9/japanese-local-asr-benchmark
 cd japanese-local-asr-benchmark
 ```
 
