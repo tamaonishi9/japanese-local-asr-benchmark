@@ -2,6 +2,9 @@
 results/
 *.wav
 
+# 設計メモ（main に含めない）
+docs/design/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
