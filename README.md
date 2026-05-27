@@ -2,13 +2,14 @@
 
 録音した同一音声を複数のローカル ASR profile で文字起こしし、結果テキストと推論時間、RTF を比較するツールです。
 
-現在の `v0.1` 対応範囲は、`faster-whisper` backend 上で動かす次のモデル比較です。
+`v0.1` では `faster-whisper` backend を使った 3 profile を比較します。`v0.2` では `moonshine` backend を追加し、日本語特化モデル `moonshine/tiny-ja` を比較対象に加えます。
 
-| Profile             | Model                                    | 用途                   |
-| ------------------- | ---------------------------------------- | ---------------------- |
-| `small`             | Whisper `small`                          | 軽量な動作確認向け     |
-| `large_v3`          | Whisper `large-v3`                       | Whisper 系の高精度基準 |
-| `kotoba_whisper_v2` | `kotoba-tech/kotoba-whisper-v2.0-faster` | 日本語特化モデル比較   |
+| Profile             | Model                                    | 用途                               |
+| ------------------- | ---------------------------------------- | ---------------------------------- |
+| `small`             | Whisper `small`                          | 軽量な動作確認向け                 |
+| `large_v3`          | Whisper `large-v3`                       | Whisper 系の高精度基準             |
+| `kotoba_whisper_v2` | `kotoba-tech/kotoba-whisper-v2.0-faster` | 日本語特化モデル比較               |
+| `moonshine_tiny_ja` | `moonshine/tiny-ja`                      | 日本語特化、超高速 CPU 推論        |
 
 結果は Markdown / CSV / JSON に保存でき、Markdown はクリップボードへコピーできます。
 
@@ -55,7 +56,7 @@ channels = 1
 dtype = "float32"
 ```
 
-現時点で利用できる backend は `faster_whisper` のみです。`backend` 設定へ別の値を書くだけでは、`whisper.cpp` や ReazonSpeech は利用できません。
+現時点で利用できる backend は `faster_whisper` と `moonshine` です。`whisper.cpp` や ReazonSpeech 等は、`backend` 設定に値を書くだけでは利用できません。
 
 ## セットアップ
 
@@ -226,7 +227,7 @@ python record_and_compare.py
 
 使用モデルは [config.toml](config.toml) の `enabled` で選択します。
 
-CPU / CUDA テンプレートは、次の 3 profile を比較対象として有効化しています。
+CPU テンプレート（`config.toml.cpu`）は faster-whisper 3 profile と moonshine 1 profile の計 4 profile を有効化しています。CUDA テンプレート（`config.toml.cuda`）は faster-whisper の 3 profile のみです。moonshine backend は CPU のみ対応のため CUDA テンプレートには含まれません。
 
 ```toml
 [profiles.small]
@@ -237,6 +238,9 @@ enabled = true
 
 [profiles.kotoba_whisper_v2]
 enabled = true
+
+[profiles.moonshine_tiny_ja]
+enabled = true  # CPU テンプレートのみ
 ```
 
 #### 軽量な動作確認
@@ -370,8 +374,8 @@ num_workers = 1
 | -------------- | --------------------------------------------- |
 | セクション名   | 結果で使用する `profile_id`。例: `small`      |
 | `enabled`      | この比較対象を実行するか                      |
-| `model_id`     | `faster-whisper` に渡すモデル識別子           |
-| `backend`      | 実行 backend。現在は `faster_whisper` のみ    |
+| `model_id`     | `faster-whisper` / `moonshine` のモデル識別子  |
+| `backend`      | 実行 backend。`faster_whisper` / `moonshine`   |
 | `language`     | 文字起こし言語。日本語は `ja`                 |
 | `device`       | `cpu` または `cuda`                           |
 | `compute_type` | CTranslate2 の計算精度。CPU 初期設定は `int8` |
@@ -393,6 +397,18 @@ num_workers = 1
 ```
 
 GPU 実行には、使用する `faster-whisper` / CTranslate2 のバージョンに対応した NVIDIA CUDA / cuDNN 環境が必要です。現在の依存構成では CUDA 12.x の cuBLAS と CUDA 12 対応の cuDNN 9 を使用します。詳細は「CUDA 実行環境」を参照してください。
+
+#### moonshine 設定例
+
+`moonshine` backend は `device`、`compute_type`、`cpu_threads`、`num_workers` を使用しません。
+
+```toml
+[profiles.moonshine_tiny_ja]
+enabled = true
+model_id = "moonshine/tiny-ja"
+backend = "moonshine"
+language = "ja"
+```
 
 ## 出力
 
@@ -493,7 +509,8 @@ num_workers = 1
 
 ## 現在の制限
 
-- backend は `faster_whisper` のみ
+- `moonshine` backend は CPU のみ対応（CUDA 未対応）
+- `whisper.cpp` や ReazonSpeech 等の backend は未対応
 - 有効 profile は録音後に順次処理されるため、profile 数に応じて総実行時間が増える
 - モデルは処理後に解放するが、RAM / VRAM の実際の返却タイミングは推論 runtime と実行環境に依存する
 - 初期版は 16 kHz / mono / float32 の録音入力のみ
@@ -511,8 +528,21 @@ num_workers = 1
 | 対象                                     | 用途                   | ライセンス確認先                                                                         |
 | ---------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------- |
 | `faster-whisper`                         | ASR 推論 backend       | [SYSTRAN/faster-whisper](https://github.com/SYSTRAN/faster-whisper/blob/master/LICENSE)  |
+| `useful-moonshine-onnx`                  | Moonshine 推論 backend | [moonshine-ai/moonshine](https://github.com/moonshine-ai/moonshine/blob/main/LICENSE)    |
 | `CTranslate2`                            | 推論 runtime           | [OpenNMT/CTranslate2](https://github.com/OpenNMT/CTranslate2)                            |
 | Whisper `small` / `large-v3`             | 比較用モデル           | [openai/whisper](https://github.com/openai/whisper/blob/main/LICENSE)                    |
 | `kotoba-tech/kotoba-whisper-v2.0-faster` | 日本語特化比較用モデル | [Hugging Face model page](https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0-faster) |
+| `moonshine/tiny`, `moonshine/base`       | 英語 ASR モデル        | MIT License / [UsefulSensors/moonshine](https://huggingface.co/UsefulSensors/moonshine)  |
+| `moonshine/tiny-ja`                      | 日本語 ASR モデル      | [Moonshine Community License](https://huggingface.co/UsefulSensors/moonshine-tiny-ja)    |
+
+### Moonshine モデルのライセンス注意事項
+
+`moonshine/tiny-ja` 等の非英語 Moonshine モデルは **Moonshine Community License** が適用されます。主な条件:
+
+- 非商用または年間収益 $1M 未満の組織による利用を対象とする
+- 商用利用（年間収益 $1M 超）には別途ライセンス契約が必要
+- 英語モデル（`moonshine/tiny`、`moonshine/base`）は MIT License
+
+モデルの重みファイルはこのリポジトリに同梱しておらず、初回実行時に利用者自身が Hugging Face Hub からダウンロードします。ダウンロード前に配布元のライセンスを確認してください。
 
 将来、モデルファイル、依存ライブラリ、DLL、実行ファイル一式などを本リポジトリや配布物へ同梱する場合は、対象物ごとの再配布条件およびライセンス表示要件を改めて確認してください。
