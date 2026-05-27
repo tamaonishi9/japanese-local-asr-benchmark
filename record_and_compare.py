@@ -7,6 +7,7 @@ from typing import Any
 
 from adapters.base import BaseAdapter
 from adapters.faster_whisper_adapter import FasterWhisperAdapter
+from adapters.moonshine_adapter import MoonshineAdapter
 from config_loader import ProfileConfig, apply_cli_overrides, load_config
 from output import (
     copy_to_clipboard,
@@ -29,7 +30,15 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _build_adapter(profile: ProfileConfig) -> FasterWhisperAdapter:
+def _build_adapter(profile: ProfileConfig) -> BaseAdapter:
+    # backend 値でアダプタを選択する。未対応 backend は呼び出し元で事前検証済み
+    if profile.backend == "moonshine":
+        return MoonshineAdapter(
+            profile_id=profile.profile_id,
+            model_id=profile.model_id,
+            backend=profile.backend,
+            language=profile.language,
+        )
     return FasterWhisperAdapter(
         profile_id=profile.profile_id,
         model_id=profile.model_id,
@@ -71,12 +80,13 @@ def main() -> int:
         )
         return 1
 
-    # Phase 1 では faster_whisper 以外の backend は未実装
+    # 対応 backend を明示する。未知の backend は早期終了してミスリードな結果を防ぐ
+    _SUPPORTED_BACKENDS = {"faster_whisper", "moonshine"}
     for profile in enabled_profiles:
-        if profile.backend != "faster_whisper":
+        if profile.backend not in _SUPPORTED_BACKENDS:
             print(
                 f"error: [{profile.profile_id}] backend={profile.backend!r} は未対応。"
-                "Phase 1 では faster_whisper のみ使用できます。",
+                f"対応 backend: {sorted(_SUPPORTED_BACKENDS)}",
                 file=sys.stderr,
             )
             return 1
