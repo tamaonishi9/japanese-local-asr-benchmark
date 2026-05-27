@@ -14,6 +14,8 @@
 
 まず動かす場合は、[最短手順](docs/最短手順.md) を参照してください。CPU での初回比較と、CUDA を使う場合の追加手順だけをまとめています。
 
+実際の実行結果は [実行結果まとめサンプル](docs/実行結果まとめサンプル.md) を参照してください。
+
 ## 特徴
 
 - 1 回の録音から、同一音声を複数 profile へ渡して比較
@@ -162,9 +164,9 @@ $env:HF_HUB_DISABLE_SYMLINKS_WARNING = "1"
 
 実行時に読み込まれる設定ファイルは `config.toml` です。比較用テンプレートとして、次の 2 ファイルを用意しています。
 
-| ファイル | 用途 | 設定 |
-| --- | --- | --- |
-| `config.toml.cpu` | CPU で 3 モデル比較 | `device = "cpu"`, `compute_type = "int8"` |
+| ファイル           | 用途                       | 設定                                          |
+| ------------------ | -------------------------- | --------------------------------------------- |
+| `config.toml.cpu`  | CPU で 3 モデル比較        | `device = "cpu"`, `compute_type = "int8"`     |
 | `config.toml.cuda` | NVIDIA GPU で 3 モデル比較 | `device = "cuda"`, `compute_type = "float16"` |
 
 CPU 設定を利用する場合:
@@ -420,14 +422,14 @@ measurement_scope
 
 ## 指標
 
-| 用語                    | 説明                                                |
-| ----------------------- | --------------------------------------------------- |
-| `RTF`                   | 推論時間 / 音声長。`1` 未満なら音声の実時間より高速 |
+| 用語                    | 説明                                                               |
+| ----------------------- | ------------------------------------------------------------------ |
+| `RTF`                   | 推論時間 / 音声長。`1` 未満なら音声の実時間より高速                |
 | `model_load_seconds`    | モデル準備時間。CUDA profile では warm-up を含む。RTF には含めない |
-| `preprocessing_seconds` | engine 投入前の音声前処理時間                       |
-| `inference_seconds`     | 文字起こし結果の回収完了までの推論時間              |
-| `execution_seconds`     | 前処理と推論を含む adapter 実行時間                 |
-| `measurement_scope`     | 推論時間がどの範囲を表すか                          |
+| `preprocessing_seconds` | engine 投入前の音声前処理時間                                      |
+| `inference_seconds`     | 文字起こし結果の回収完了までの推論時間                             |
+| `execution_seconds`     | 前処理と推論を含む adapter 実行時間                                |
+| `measurement_scope`     | 推論時間がどの範囲を表すか                                         |
 
 現在の `faster-whisper` profile は、モデル準備後の推論区間を `inference_only` として記録します。
 
@@ -506,11 +508,11 @@ num_workers = 1
 
 現在利用する主な外部成果物:
 
-| 対象 | 用途 | ライセンス確認先 |
-| --- | --- | --- |
-| `faster-whisper` | ASR 推論 backend | [SYSTRAN/faster-whisper](https://github.com/SYSTRAN/faster-whisper/blob/master/LICENSE) |
-| `CTranslate2` | 推論 runtime | [OpenNMT/CTranslate2](https://github.com/OpenNMT/CTranslate2) |
-| Whisper `small` / `large-v3` | 比較用モデル | [openai/whisper](https://github.com/openai/whisper/blob/main/LICENSE) |
+| 対象                                     | 用途                   | ライセンス確認先                                                                         |
+| ---------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------- |
+| `faster-whisper`                         | ASR 推論 backend       | [SYSTRAN/faster-whisper](https://github.com/SYSTRAN/faster-whisper/blob/master/LICENSE)  |
+| `CTranslate2`                            | 推論 runtime           | [OpenNMT/CTranslate2](https://github.com/OpenNMT/CTranslate2)                            |
+| Whisper `small` / `large-v3`             | 比較用モデル           | [openai/whisper](https://github.com/openai/whisper/blob/main/LICENSE)                    |
 | `kotoba-tech/kotoba-whisper-v2.0-faster` | 日本語特化比較用モデル | [Hugging Face model page](https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0-faster) |
 
 将来、モデルファイル、依存ライブラリ、DLL、実行ファイル一式などを本リポジトリや配布物へ同梱する場合は、対象物ごとの再配布条件およびライセンス表示要件を改めて確認してください。
